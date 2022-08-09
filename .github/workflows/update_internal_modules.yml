@@ -1,12 +1,7 @@
 name: Update internal modules
 
 on:
-  schedule:
-    # everyday 00:00 (UTC+9)
-    - cron: "0 15 * * *"
-
-env:
-  cache-version: v1
+  workflow_dispatch
 
 jobs:
   upload:
@@ -19,19 +14,19 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
+      - name: Get version of package.json
+        id: version
+        run: |
+          echo "::set-output name=LATEST_VERSION::$(cat package.json | jq -r '.dependencies["@akashic/akashic-engine"]')"
       - name: Update internal modules
         run: |
-          npm ci --ignore-scripts
+          npm ci
           npm install @akashic/akashic-engine@latest --save-exact
           npm install @akashic-extension/akashic-box2d@latest --save-exact
           npm install @akashic-extension/akashic-label@latest --save-exact
           npm install @akashic-extension/akashic-timeline@latest --save-exact
+          npm version ${{ steps.version.outputs.LATEST_VERSION }} --allow-same-version --no-git-tag-version
           npm run build
-      - name: Get version of package.json
-        id: version
-        run: |
-          LATEST_VERSION=`cat package.json | jq -r '.dependencies["@akashic/akashic-engine"]'`
-          echo "::set-output name=LATEST_VERSION::$LATEST_VERSION"
       - name: Get workflow url
         id: workflow
         run: echo "::set-output name=WORKFLOW_URL::$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
@@ -51,7 +46,6 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
           git commit -m "Update to ${{ steps.version.outputs.LATEST_VERSION }}"
-          npm version ${{ steps.version.outputs.LATEST_VERSION }} --allow-same-version
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v3
         if: 2 <= steps.diff.outputs.count # package.json, package-lock.json
